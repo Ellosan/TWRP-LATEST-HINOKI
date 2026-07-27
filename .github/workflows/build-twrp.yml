@@ -28,6 +28,11 @@ on:
         options:
           - eng
           - userdebug
+      publish_release:
+        description: "Publish a GitHub Release with the built images"
+        required: false
+        default: false
+        type: boolean
 
 # A full sync + build does not fit in the default 6 h with much room to spare,
 # so keep concurrency at one run per ref.
@@ -40,6 +45,10 @@ jobs:
     name: Build ${{ inputs.build_target }} (${{ inputs.manifest_branch }})
     runs-on: ubuntu-22.04
     timeout-minutes: 350
+
+    # Only needed to create the release; the build itself writes nothing back.
+    permissions:
+      contents: write
 
     steps:
       - name: Check out the device tree
@@ -142,6 +151,76 @@ jobs:
           path: artifacts/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish release
+        if: ${{ inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          cd "$GITHUB_WORKSPACE/artifacts"
+          TAG="twrp-3.7.1_12-hinoki-$(date -u +%Y%m%d)-${{ github.run_number }}"
+
+          # Checksums for the body, without the runner's absolute paths.
+          SUMS=$(sha256sum recovery.img ramdisk-recovery.img 2>/dev/null || sha256sum recovery.img)
+
+          cat > notes.md <<NOTES
+          TWRP 3.7.1 for the Sony Xperia XA1 (\`hinoki\`), built from the
+          \`${{ inputs.manifest_branch }}\` branch of the TeamWin minimal manifest.
+
+          Built from commit \`${{ github.sha }}\` by
+          [run ${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+          ## NOT TESTED ON HARDWARE
+
+          This image compiles cleanly and is the right size for the partition.
+          Nobody has flashed it to a physical XA1. A clean build shows the board
+          and product configuration are internally consistent; it says nothing
+          about whether the display initialises, touch responds, or the
+          partitions mount.
+
+          Two parts are known-uncertain:
+
+          - **Decryption.** \`hinoki\` uses full-disk encryption with the footer on
+            the \`metadata\` partition. TWRP 12.1 decrypts FDE through its \`vold\`
+            fork, which talks to this phone's Android 8.0 Keymaster 3.0 HAL. It
+            may not work. If TWRP hangs on the password prompt, rebuild with
+            \`TW_INCLUDE_CRYPTO := false\`.
+          - **Graphics.** The panel is driven over fbdev, which is a legacy path
+            on an Android 12.1 base.
+
+          **Back up \`boot\`, \`recovery\`, \`nvram\`, \`nvdata\` and \`persist\` before
+          flashing, and have SP Flash Tool ready to restore.**
+
+          ## Flashing
+
+          Requires an unlocked bootloader.
+
+          \`\`\`
+          adb reboot bootloader
+          fastboot flash recovery recovery.img
+          fastboot reboot
+          \`\`\`
+
+          Recovery goes to the \`recovery\` partition — this device has no
+          \`FOTAKernel\` partition despite being a Sony. Hold **Volume Down +
+          Power** to enter recovery.
+
+          ## Checksums (SHA256)
+
+          \`\`\`
+          $SUMS
+          \`\`\`
+          NOTES
+
+          gh release create "$TAG" \
+            --repo "${{ github.repository }}" \
+            --title "TWRP 3.7.1_12 for Xperia XA1 (hinoki) — untested" \
+            --notes-file notes.md \
+            --prerelease \
+            recovery.img ramdisk-recovery.img SHA256SUMS
+
+          echo "Published: ${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG"
 
       - name: Upload build log on failure
         if: failure()
