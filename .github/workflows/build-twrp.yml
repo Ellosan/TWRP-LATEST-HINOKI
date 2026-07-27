@@ -54,7 +54,7 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
                       /usr/local/share/boost /usr/local/share/powershell \
                       /usr/local/lib/node_modules /opt/hostedtoolcache \
-                      "$AGENT_TOOLSDIRECTORY"
+                      "${AGENT_TOOLSDIRECTORY:-/opt/hostedtoolcache}"
           sudo apt-get purge -y '^ghc-.*' '^dotnet-.*' '^llvm-.*' \
                                 azure-cli google-chrome-stable firefox \
                                 powershell mono-devel || true
@@ -124,7 +124,9 @@ jobs:
           ls -lh
           mkdir -p "$GITHUB_WORKSPACE/artifacts"
           for f in recovery.img boot.img ramdisk-recovery.img; do
-            [ -f "$f" ] && cp "$f" "$GITHUB_WORKSPACE/artifacts/"
+            # Not every target produces every image; a missing one is not fatal,
+            # but the loop must not end on a false test under `set -e`.
+            if [ -f "$f" ]; then cp "$f" "$GITHUB_WORKSPACE/artifacts/"; fi
           done
           sha256sum "$GITHUB_WORKSPACE"/artifacts/* > "$GITHUB_WORKSPACE/artifacts/SHA256SUMS"
           cat "$GITHUB_WORKSPACE/artifacts/SHA256SUMS"
