@@ -41,14 +41,24 @@ to experiment; expect to fix things up.
 
 ## Building
 
-Needs roughly 60 GB free and a few hours on a modest machine.
+Measured on the CI run below (4-core GitHub-hosted runner, `twrp-12.1`):
+
+| | |
+|---:|:---|
+| Shallow source tree after `repo sync` | **34 GB** |
+| `repo sync` wall time | 4m40s |
+| `mka recoveryimage` wall time | **46m51s** |
+
+Allow ~60 GB to cover the tree plus `out/`. The 34 GB is measured; the rest is
+headroom, since a `recoveryimage`-only build does not populate `out/` anywhere
+near as heavily as a full ROM.
 
 ```bash
 mkdir -p ~/twrp && cd ~/twrp
 repo init --depth=1 -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1 --git-lfs
 repo sync -c -j"$(nproc --all)" --force-sync --no-clone-bundle --no-tags
 
-git clone https://github.com/ellosan/twrp-latest-hinokil.git device/sony/hinoki
+git clone https://github.com/Ellosan/TWRP-LATEST-HINOKI.git device/sony/hinoki
 
 export ALLOW_MISSING_DEPENDENCIES=true
 source build/envsetup.sh
@@ -65,6 +75,24 @@ runner: **Actions → Build TWRP for hinoki → Run workflow**. It frees up the
 runner disk first (the stock image does not have room for an AOSP tree), syncs
 the manifest branch you pick, drops this repo into `device/sony/hinoki` and
 uploads `recovery.img` plus a `SHA256SUMS` as a build artifact.
+
+### Verified build
+
+This tree builds clean. Run
+[#3](https://github.com/Ellosan/TWRP-LATEST-HINOKI/actions/runs/30281029316)
+(`twrp-12.1`, `twrp_hinoki-eng`, commit `c5b5b51`):
+
+```
+recovery.img          33 MB   e05d5192e8bc7925051569a76a68a8e1a00bc4f5bc9b3a164541a538dbc8ec56
+ramdisk-recovery.img  24 MB   4d3fff109c8512d66adfb9d0f79cf3a4fc5b4e33b55f93d3b99873715c14e1a5
+```
+
+33 MB against a 40 MiB (41943040-byte) `recovery` partition, so
+`assert-max-image-size` passes with room to spare — which also corroborates the
+partition size taken from the `mt6757-common` tree.
+
+Building clean is not the same as booting. See
+[Known limitations](#known-limitations).
 
 ## Flashing
 
@@ -155,10 +183,13 @@ Beyond the branch bump, these were real defects:
 - **SELinux is permissive** (`androidboot.selinux=permissive` in the kernel
   cmdline), matching what the LineageOS 15.1 tree for this SoC used. Recovery
   needs vendor labels this tree does not ship.
-- **Untested on hardware.** This tree is a source deliverable — it has not been
-  flashed to a physical XA1. Take a full backup of `boot`, `recovery`, `nvram`,
-  `nvdata` and `persist` before you flash anything, and be ready to restore with
-  SP Flash Tool.
+- **Untested on hardware.** The tree compiles and produces a correctly sized
+  `recovery.img`, but nothing here has been flashed to a physical XA1. A clean
+  build proves the board and product config are internally consistent; it says
+  nothing about whether the panel lights up, the touchscreen responds, or the
+  partitions mount. Take a full backup of `boot`, `recovery`, `nvram`, `nvdata`
+  and `persist` before you flash anything, and be ready to restore with SP Flash
+  Tool.
 
 ## Credits
 

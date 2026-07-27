@@ -116,6 +116,10 @@ jobs:
           source build/envsetup.sh
           lunch twrp_hinoki-${{ inputs.lunch_variant }}
           mka ${{ inputs.build_target }} -j"$(nproc --all)"
+          # Peak disk after the build, so the README's sizing advice stays
+          # grounded in measurements rather than guesswork.
+          df -h /
+          du -sh out || true
 
       - name: Collect artifacts
         run: |
