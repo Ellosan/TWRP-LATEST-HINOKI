@@ -85,9 +85,14 @@ TARGET_COPY_OUT_VENDOR := vendor
 
 # hinoki is a legacy A-only device: no A/B slots, no dynamic partitions,
 # no system-as-root, no vendor_boot and no AVB.
+#
+# PRODUCT_USE_DYNAMIC_PARTITIONS is deliberately not set here. Product config
+# (envsetup.mk:312) runs before board config (envsetup.mk:323), so every
+# PRODUCT_* variable is already .KATI_READONLY by the time this file is read
+# and assigning one is a hard error. It defaults to false, which is what we
+# want; device.mk is the place to set it if that ever changes.
 AB_OTA_UPDATER := false
 BOARD_USES_RECOVERY_AS_BOOT := false
-PRODUCT_USE_DYNAMIC_PARTITIONS := false
 BOARD_AVB_ENABLE := false
 
 # Recovery
@@ -99,13 +104,6 @@ TARGET_SYSTEM_PROP := $(DEVICE_PATH)/system.prop
 
 # Assert
 TARGET_OTA_ASSERT_DEVICE := hinoki,G3121,G3123,G3125,G3112,G3116
-
-# The stock security patch level is from 2019. Without these overrides the
-# Android 12.1 build system trips its own anti-rollback checks.
-PLATFORM_VERSION := 16.1.0
-PLATFORM_VERSION_LAST_STABLE := $(PLATFORM_VERSION)
-PLATFORM_SECURITY_PATCH := 2099-12-31
-VENDOR_SECURITY_PATCH := 2099-12-31
 
 #
 # TWRP
