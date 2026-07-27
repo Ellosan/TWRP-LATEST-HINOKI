@@ -76,23 +76,27 @@ runner disk first (the stock image does not have room for an AOSP tree), syncs
 the manifest branch you pick, drops this repo into `device/sony/hinoki` and
 uploads `recovery.img` plus a `SHA256SUMS` as a build artifact.
 
-### Verified build
+## Download
 
-This tree builds clean. Run
-[#3](https://github.com/Ellosan/TWRP-LATEST-HINOKI/actions/runs/30281029316)
-(`twrp-12.1`, `twrp_hinoki-eng`, commit `c5b5b51`):
+Prebuilt images are published as GitHub Releases — see
+[Releases](https://github.com/Ellosan/TWRP-LATEST-HINOKI/releases). Each release
+carries its own SHA256 checksums in the body; treat those as authoritative
+rather than any figure quoted here, since AOSP builds are not bit-reproducible
+(build IDs and timestamps differ per run) and every run therefore produces
+different hashes for identical sources.
 
-```
-recovery.img          33 MB   e05d5192e8bc7925051569a76a68a8e1a00bc4f5bc9b3a164541a538dbc8ec56
-ramdisk-recovery.img  24 MB   4d3fff109c8512d66adfb9d0f79cf3a4fc5b4e33b55f93d3b99873715c14e1a5
-```
+The current release was built by
+[run #4](https://github.com/Ellosan/TWRP-LATEST-HINOKI/actions/runs/30290572853)
+from commit `207e58c` on `twrp-12.1`, `twrp_hinoki-eng`.
 
-33 MB against a 40 MiB (41943040-byte) `recovery` partition, so
-`assert-max-image-size` passes with room to spare — which also corroborates the
-partition size taken from the `mt6757-common` tree.
+`recovery.img` comes out at 33 MB against a 40 MiB (41943040-byte) `recovery`
+partition, so `assert-max-image-size` passes with room to spare — which
+independently corroborates the partition size taken from the `mt6757-common`
+tree.
 
-Building clean is not the same as booting. See
-[Known limitations](#known-limitations).
+Releases are marked **pre-release** and will stay that way until someone
+confirms the image actually boots on a physical XA1. Building clean is not the
+same as booting; see [Known limitations](#known-limitations).
 
 ## Flashing
 
