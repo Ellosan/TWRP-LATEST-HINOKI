@@ -1,0 +1,56 @@
+# MT6757 ueventd fragment for hinoki (recovery only).
+#
+# ueventd reads /ueventd.${ro.hardware}.rc in addition to /ueventd.rc.
+# Only the nodes TWRP actually touches are listed: the by-name block devices
+# it backs up and flashes, the eMMC boot areas, and the SD / OTG hosts.
+
+# eMMC
+/dev/block/mmcblk0                                                  0660    root    system
+/dev/block/mmcblk0boot0                                             0660    root    system
+/dev/block/mmcblk0boot1                                             0660    root    system
+/dev/misc-sd                                                        0660    root    system
+
+# by-name partitions
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/boot          0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/recovery      0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/system        0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/userdata      0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/cache         0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/metadata      0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/misc2         0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/para          0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/frp           0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/logo          0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/lk            0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/lk2           0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/secro         0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/seccfg        0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/proinfo       0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/nvram         0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/nvdata        0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/nvcfg         0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/protect1      0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/protect2      0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/persist       0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/oem           0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/expdb         0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/otp           0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/tee1          0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/tee2          0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/md1img        0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/md1dsp        0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/md1arm7       0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/md3img        0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/apps_log      0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/diag          0660    root    system
+/dev/block/platform/mtk-msdc.0/11230000.msdc0/by-name/boot_para     0660    root    system
+
+# Removable storage
+/dev/block/mmcblk1                                                  0660    root    system
+/dev/block/mmcblk1p1                                                0660    root    system
+
+# Graphics / input needed by the TWRP GUI
+/dev/graphics/fb0                                                   0660    system  graphics
+/dev/ion                                                            0666    system  graphics
+/dev/mali                                                           0666    system  graphics
+/dev/touch                                                          0660    root    system

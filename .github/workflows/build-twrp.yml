@@ -1,0 +1,146 @@
+name: Build TWRP for hinoki
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest_branch:
+        description: "TWRP minimal manifest branch"
+        required: true
+        default: "twrp-12.1"
+        type: choice
+        options:
+          - twrp-12.1
+          - twrp-14.1
+          - twrp-11
+      build_target:
+        description: "Make target"
+        required: true
+        default: "recoveryimage"
+        type: choice
+        options:
+          - recoveryimage
+          - bootimage
+      lunch_variant:
+        description: "Lunch variant"
+        required: true
+        default: "eng"
+        type: choice
+        options:
+          - eng
+          - userdebug
+
+# A full sync + build does not fit in the default 6 h with much room to spare,
+# so keep concurrency at one run per ref.
+concurrency:
+  group: twrp-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build ${{ inputs.build_target }} (${{ inputs.manifest_branch }})
+    runs-on: ubuntu-22.04
+    timeout-minutes: 350
+
+    steps:
+      - name: Check out the device tree
+        uses: actions/checkout@v4
+        with:
+          path: device_tree
+
+      - name: Reclaim disk space
+        run: |
+          set -euxo pipefail
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost /usr/local/share/powershell \
+                      /usr/local/lib/node_modules /opt/hostedtoolcache \
+                      "$AGENT_TOOLSDIRECTORY"
+          sudo apt-get purge -y '^ghc-.*' '^dotnet-.*' '^llvm-.*' \
+                                azure-cli google-chrome-stable firefox \
+                                powershell mono-devel || true
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - name: Install build dependencies
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
+            git git-lfs gnupg gperf imagemagick lib32readline-dev lib32z1-dev \
+            libelf-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 \
+            libxml2-utils lzop pngcrush rsync schedtool squashfs-tools \
+            xsltproc zip zlib1g-dev python3 python-is-python3 openjdk-11-jdk-headless
+          mkdir -p ~/bin
+          curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo -o ~/bin/repo
+          chmod a+x ~/bin/repo
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Configure git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global color.ui false
+
+      - name: Sync the TWRP minimal manifest
+        run: |
+          set -euxo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/twrp"
+          cd "$GITHUB_WORKSPACE/twrp"
+          repo init --depth=1 -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git \
+            -b ${{ inputs.manifest_branch }} --git-lfs
+          repo sync -c -j"$(nproc --all)" --force-sync --no-clone-bundle --no-tags \
+            --optimized-fetch --prune
+          df -h /
+
+      - name: Place the device tree
+        run: |
+          set -euxo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/twrp/device/sony"
+          rm -rf "$GITHUB_WORKSPACE/twrp/device/sony/hinoki"
+          cp -a "$GITHUB_WORKSPACE/device_tree" "$GITHUB_WORKSPACE/twrp/device/sony/hinoki"
+          rm -rf "$GITHUB_WORKSPACE/twrp/device/sony/hinoki/.git" \
+                 "$GITHUB_WORKSPACE/twrp/device/sony/hinoki/.github"
+          ls -l "$GITHUB_WORKSPACE/twrp/device/sony/hinoki"
+
+      - name: Build
+        run: |
+          set -eux
+          cd "$GITHUB_WORKSPACE/twrp"
+          export ALLOW_MISSING_DEPENDENCIES=true
+          export LC_ALL=C
+          # envsetup.sh is not written for `set -u` / pipefail.
+          set +u
+          source build/envsetup.sh
+          lunch twrp_hinoki-${{ inputs.lunch_variant }}
+          mka ${{ inputs.build_target }} -j"$(nproc --all)"
+
+      - name: Collect artifacts
+        run: |
+          set -euxo pipefail
+          cd "$GITHUB_WORKSPACE/twrp/out/target/product/hinoki"
+          ls -lh
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+          for f in recovery.img boot.img ramdisk-recovery.img; do
+            [ -f "$f" ] && cp "$f" "$GITHUB_WORKSPACE/artifacts/"
+          done
+          sha256sum "$GITHUB_WORKSPACE"/artifacts/* > "$GITHUB_WORKSPACE/artifacts/SHA256SUMS"
+          cat "$GITHUB_WORKSPACE/artifacts/SHA256SUMS"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: twrp-hinoki-${{ inputs.manifest_branch }}-${{ github.run_number }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ github.run_number }}
+          path: twrp/out/verbose.log.gz
+          if-no-files-found: ignore

@@ -1,0 +1,9 @@
+#
+# system.prop for hinoki
+#
+
+ro.product.brand=Sony
+ro.product.manufacturer=Sony
+ro.product.model=Xperia XA1
+ro.product.device=hinoki
+ro.build.product=hinoki

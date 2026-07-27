@@ -1,0 +1,5 @@
+*.img
+*.zip
+*.o
+*.pyc
+.DS_Store
