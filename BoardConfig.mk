@@ -58,25 +58,25 @@ BOARD_BOOT_HEADER_VERSION := 0
 BOARD_KERNEL_BASE := 0x40078000
 BOARD_KERNEL_PAGESIZE := 4096
 BOARD_KERNEL_OFFSET := 0x00008000
-# NOT the stock 0x04f88000. That puts the ramdisk at 0x45000000, which is fine
-# for the few-MB stock recovery ramdisk but not for TWRP's ~23 MB one: it then
-# runs up to ~0x46700000 and lk rejects the boot with
-#   FAILED (remote: 'invalid ramdisk address: overlap with lk')
-# so lk itself lives above 0x45000000.
+# Stock offset, and it must stay that way. Moving the ramdisk to 0x42100000 to
+# dodge lk produced an image the bootloader refused outright:
+#   "Your device has been unlocked and the boot image is not working."
 #
-# Load it into the gap below the tags region instead. The kernel's arm64 header
-# reports image_size = 29,151,232 (text+data+BSS), so the kernel really occupies
-#   0x40080000 .. 0x41c4d000
-# leaving 0x41c4d000 .. 0x44000000 (35.7 MB) free before the DTB at tags.
-# 0x42100000 gives 4 MB of margin above the kernel and lands the 23 MB ramdisk
-# at 0x42100000..0x43809000, clearing tags by 8 MB.
+# A known-working TWRP for this device (the unofficial XA1-series build) uses
+# the stock 0x45000000 with a 13,975,399-byte ramdisk, so the address is right
+# and the SIZE is the real constraint. Bracketing from the three data points:
 #
-# Constraint for anyone growing the ramdisk: it must still end below
-# BOARD_TAGS_OFFSET (0x44000000), i.e. stay under ~31 MB at this offset.
-BOARD_RAMDISK_OFFSET := 0x02088000
-BOARD_SECOND_OFFSET := 0x00e88000
+#   0x45000000 + 13,975,399 -> 0x45d53f67   boots
+#   0x45000000 + 24,153,991 -> 0x46708f87   "overlap with lk"
+#
+# so lk sits somewhere in 0x45d53f67..0x46708f87. 0x46000000 is the obvious
+# round candidate, which would put the ceiling at exactly 16 MB. Keep the
+# ramdisk under 13.3 MB to match the known-good image and stay clear of it.
+BOARD_RAMDISK_OFFSET := 0x04f88000
+BOARD_SECOND_OFFSET := 0x00000000
 BOARD_TAGS_OFFSET := 0x03f88000
-BOARD_KERNEL_CMDLINE := bootopt=64S3,32N2,64N2 androidboot.selinux=permissive
+# No androidboot.selinux=permissive: the known-working image does not carry it.
+BOARD_KERNEL_CMDLINE := bootopt=64S3,32N2,64N2
 BOARD_MKBOOTIMG_ARGS := \
     --board 1465391499 \
     --kernel_offset $(BOARD_KERNEL_OFFSET) \
@@ -173,17 +173,24 @@ TW_INCLUDE_NTFS_3G := false
 TW_INCLUDE_CRYPTO := false
 
 # Extras
-TW_INCLUDE_REPACKTOOLS := true
-TW_INCLUDE_RESETPROP := true
-TW_INCLUDE_LIBRESETPROP := true
+#
+# repacktools (magiskboot ~1.2 MB + magiskpolicy), resetprop and MTP are all
+# off purely for ramdisk size -- the ramdisk has to fit under lk at the stock
+# load address. Turn them back on once the image is known to boot and the size
+# ceiling is actually measured rather than inferred.
+TW_INCLUDE_REPACKTOOLS := false
+TW_INCLUDE_RESETPROP := false
+TW_INCLUDE_LIBRESETPROP := false
+TW_EXCLUDE_MTP := true
 TW_EXTRA_LANGUAGES := false
 TW_DEFAULT_LANGUAGE := en
 TW_CUSTOM_CPU_TEMP_PATH := /sys/devices/virtual/thermal/thermal_zone1/temp
 TW_NO_BATT_PERCENT := false
 TW_EXCLUDE_APEX := true
 
-# Debug
-TWRP_INCLUDE_LOGCAT := true
-TARGET_USES_LOGD := true
+# Debug. Off for size; logd/logcat is worth ~1 MB and we cannot afford it until
+# the image boots. Re-enable when debugging a booting-but-broken TWRP.
+TWRP_INCLUDE_LOGCAT := false
+TARGET_USES_LOGD := false
 
 include vendor/twrp/config/BoardConfigTWRP.mk
