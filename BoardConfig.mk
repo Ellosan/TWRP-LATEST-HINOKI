@@ -58,7 +58,22 @@ BOARD_BOOT_HEADER_VERSION := 0
 BOARD_KERNEL_BASE := 0x40078000
 BOARD_KERNEL_PAGESIZE := 4096
 BOARD_KERNEL_OFFSET := 0x00008000
-BOARD_RAMDISK_OFFSET := 0x04f88000
+# NOT the stock 0x04f88000. That puts the ramdisk at 0x45000000, which is fine
+# for the few-MB stock recovery ramdisk but not for TWRP's ~23 MB one: it then
+# runs up to ~0x46700000 and lk rejects the boot with
+#   FAILED (remote: 'invalid ramdisk address: overlap with lk')
+# so lk itself lives above 0x45000000.
+#
+# Load it into the gap below the tags region instead. The kernel's arm64 header
+# reports image_size = 29,151,232 (text+data+BSS), so the kernel really occupies
+#   0x40080000 .. 0x41c4d000
+# leaving 0x41c4d000 .. 0x44000000 (35.7 MB) free before the DTB at tags.
+# 0x42100000 gives 4 MB of margin above the kernel and lands the 23 MB ramdisk
+# at 0x42100000..0x43809000, clearing tags by 8 MB.
+#
+# Constraint for anyone growing the ramdisk: it must still end below
+# BOARD_TAGS_OFFSET (0x44000000), i.e. stay under ~31 MB at this offset.
+BOARD_RAMDISK_OFFSET := 0x02088000
 BOARD_SECOND_OFFSET := 0x00e88000
 BOARD_TAGS_OFFSET := 0x03f88000
 BOARD_KERNEL_CMDLINE := bootopt=64S3,32N2,64N2 androidboot.selinux=permissive

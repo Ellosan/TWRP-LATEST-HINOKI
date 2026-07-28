@@ -184,6 +184,15 @@ Beyond the branch bump, these were real defects:
   ships a Keymaster 3.0 HAL from Android 8.0. It may work; it may not. If TWRP
   hangs or loops on the password prompt, set `TW_INCLUDE_CRYPTO := false` in
   `BoardConfig.mk` and rebuild. You lose decryption and keep a working recovery.
+- **Ramdisk load address is not the stock one.** Sony's `0x04f88000` ramdisk
+  offset puts the ramdisk at `0x45000000`, which is where lk lives. That is
+  harmless for the small stock recovery ramdisk but TWRP's is ~23 MB and runs
+  into it, and lk refuses the boot with `invalid ramdisk address: overlap with
+  lk`. This tree loads the ramdisk at `0x42100000` instead, in the gap between
+  the kernel's real footprint (`image_size` = 29,151,232, so it ends at
+  `0x41c4d000`) and the DTB at `0x44000000`. If you grow the ramdisk past
+  ~31 MB it will collide with tags and need moving again.
+
 - **SELinux is permissive** (`androidboot.selinux=permissive` in the kernel
   cmdline), matching what the LineageOS 15.1 tree for this SoC used. Recovery
   needs vendor labels this tree does not ship.
