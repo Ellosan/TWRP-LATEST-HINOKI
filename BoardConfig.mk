@@ -148,21 +148,35 @@ TW_EXTERNAL_STORAGE_MOUNT_POINT := "external_sd"
 TW_NO_USB_STORAGE := false
 TARGET_USE_CUSTOM_LUN_FILE_PATH := /sys/devices/platform/mt_usb/musb-hdrc.0.auto/gadget/lun%d/file
 
-# Filesystems (exFAT and NTFS for the external SD / OTG)
-TW_INCLUDE_NTFS_3G := true
+# Filesystems. exFAT is on by default (TW_NO_EXFAT would disable it).
+# NTFS-3G is off to keep the ramdisk small -- see the size note below.
+TW_INCLUDE_NTFS_3G := false
 
-# Encryption. hinoki ships full-disk encryption with the crypto footer on the
-# dedicated "metadata" partition; the location is declared by the encryptable=
-# flag in recovery.fstab and decryption is handled by TWRP's vold fork.
-# If TWRP hangs on the password prompt on your firmware, set this to false and
-# rebuild -- you lose decryption but keep a working recovery.
-TW_INCLUDE_CRYPTO := true
+# Ramdisk size
+#
+# lk refuses to boot the flashed recovery image. The ramdisk was 24,153,991
+# bytes, which is far larger than anything this 2017 bootloader was built to
+# relocate, so it is the leading suspect. Measured from the unpacked ramdisk,
+# the three settings below account for roughly 15 MB uncompressed:
+#
+#   TW_INCLUDE_CRYPTO   keystore2 1.6 MB, libicui18n+libicuuc 4.5 MB,
+#                       gatekeeper/weaver/authsecret HALs      ~8-10 MB
+#   TW_EXTRA_LANGUAGES  DroidSansFallback.ttf 3.7 MB,
+#                       twres/languages 1.1 MB                  ~4.8 MB
+#   TW_INCLUDE_NTFS_3G  ntfs-3g binaries                        ~1 MB
+#
+# Encryption is the right thing to drop first: hinoki uses FDE with the footer
+# on the "metadata" partition, and TWRP 12.1 decrypts that through its vold
+# fork talking to this phone's Android 8.0 Keymaster 3.0 HAL, which was always
+# unlikely to work. Set this back to true (and re-check the ramdisk size) if a
+# smaller image turns out not to be what lk was objecting to.
+TW_INCLUDE_CRYPTO := false
 
 # Extras
 TW_INCLUDE_REPACKTOOLS := true
 TW_INCLUDE_RESETPROP := true
 TW_INCLUDE_LIBRESETPROP := true
-TW_EXTRA_LANGUAGES := true
+TW_EXTRA_LANGUAGES := false
 TW_DEFAULT_LANGUAGE := en
 TW_CUSTOM_CPU_TEMP_PATH := /sys/devices/virtual/thermal/thermal_zone1/temp
 TW_NO_BATT_PERCENT := false
