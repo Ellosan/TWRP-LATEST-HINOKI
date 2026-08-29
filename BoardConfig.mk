@@ -46,9 +46,16 @@ TARGET_2ND_CPU_VARIANT_RUNTIME := cortex-a53
 TARGET_USES_64_BIT_BINDER := true
 
 # Kernel
-# prebuilt/kernel is the stock 4.4.83 Image.gz with the MT6757 DTB appended,
-# pulled out of the XA1 stock boot image. Do not gunzip or otherwise rewrite
-# it: the appended DTB sits past the end of the gzip stream and lk needs it.
+#
+# prebuilt/kernel is the kernel from the LineageOS 17.1 boot image for this
+# device (4.4.83-AvengedKernel+), NOT the Sony stock 8.0 one. Recovery has to
+# run the same kernel the ROM boots or the bootloader refuses the image with
+# "the boot image is not working" -- that mismatch, not ramdisk size or load
+# address, is what blocked every earlier attempt.
+#
+# Format is Image.gz with the MT6757 DTB appended past the end of the gzip
+# stream (9,713,159 B gzip + 127,207 B DTB). Do not gunzip or rewrite it or
+# the DTB is lost.
 BOARD_KERNEL_IMAGE_NAME := Image.gz-dtb
 TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/kernel
 TARGET_FORCE_PREBUILT_KERNEL := true
@@ -58,25 +65,18 @@ BOARD_BOOT_HEADER_VERSION := 0
 BOARD_KERNEL_BASE := 0x40078000
 BOARD_KERNEL_PAGESIZE := 4096
 BOARD_KERNEL_OFFSET := 0x00008000
-# Stock offset, and it must stay that way. Moving the ramdisk to 0x42100000 to
-# dodge lk produced an image the bootloader refused outright:
-#   "Your device has been unlocked and the boot image is not working."
-#
-# A known-working TWRP for this device (the unofficial XA1-series build) uses
-# the stock 0x45000000 with a 13,975,399-byte ramdisk, so the address is right
-# and the SIZE is the real constraint. Bracketing from the three data points:
-#
-#   0x45000000 + 13,975,399 -> 0x45d53f67   boots
-#   0x45000000 + 24,153,991 -> 0x46708f87   "overlap with lk"
-#
-# so lk sits somewhere in 0x45d53f67..0x46708f87. 0x46000000 is the obvious
-# round candidate, which would put the ceiling at exactly 16 MB. Keep the
-# ramdisk under 13.3 MB to match the known-good image and stay clear of it.
+# Every offset below is copied verbatim from the LineageOS 17.1 boot image, so
+# the recovery lands in memory exactly where the ROM's own kernel expects to.
 BOARD_RAMDISK_OFFSET := 0x04f88000
-BOARD_SECOND_OFFSET := 0x00000000
+BOARD_SECOND_OFFSET := 0x00e88000
 BOARD_TAGS_OFFSET := 0x03f88000
-# No androidboot.selinux=permissive: the known-working image does not carry it.
-BOARD_KERNEL_CMDLINE := bootopt=64S3,32N2,64N2
+# The LineageOS boot image's cmdline is
+#   bootopt=64S3,32N2,64N2 androidboot.selinux=permissive audit=0 \
+#   skip_initramfs root=/dev/mmcblk0p39 rootwait ro init=/init
+# Keep the first half, drop the second. skip_initramfs is what tells the kernel
+# to ignore the ramdisk and mount /system as root -- correct for booting the
+# ROM, fatal for a recovery, whose entire payload IS the ramdisk.
+BOARD_KERNEL_CMDLINE := bootopt=64S3,32N2,64N2 androidboot.selinux=permissive audit=0
 BOARD_MKBOOTIMG_ARGS := \
     --board 1465391499 \
     --kernel_offset $(BOARD_KERNEL_OFFSET) \
@@ -101,8 +101,8 @@ TARGET_USERIMAGES_USE_F2FS := true
 TARGET_USES_MKE2FS := true
 TARGET_COPY_OUT_VENDOR := vendor
 
-# hinoki is a legacy A-only device: no A/B slots, no dynamic partitions,
-# no system-as-root, no vendor_boot and no AVB.
+# hinoki is A-only: no A/B slots, no dynamic partitions, no vendor_boot, no AVB.
+# It IS system-as-root under LineageOS 17.1 -- see BOARD_BUILD_SYSTEM_ROOT_IMAGE.
 #
 # PRODUCT_USE_DYNAMIC_PARTITIONS is deliberately not set here. Product config
 # (envsetup.mk:312) runs before board config (envsetup.mk:323), so every
@@ -111,6 +111,10 @@ TARGET_COPY_OUT_VENDOR := vendor
 # want; device.mk is the place to set it if that ever changes.
 AB_OTA_UPDATER := false
 BOARD_USES_RECOVERY_AS_BOOT := false
+# LineageOS 17.1 is system-as-root: its boot image carries no ramdisk at all
+# and boots with skip_initramfs root=/dev/mmcblk0p39. TWRP therefore mounts
+# the system partition at /system_root and binds /system underneath it.
+BOARD_BUILD_SYSTEM_ROOT_IMAGE := true
 BOARD_AVB_ENABLE := false
 
 # Recovery
@@ -154,22 +158,18 @@ TW_INCLUDE_NTFS_3G := false
 
 # Ramdisk size
 #
-# lk refuses to boot the flashed recovery image. The ramdisk was 24,153,991
-# bytes, which is far larger than anything this 2017 bootloader was built to
-# relocate, so it is the leading suspect. Measured from the unpacked ramdisk,
-# the three settings below account for roughly 15 MB uncompressed:
+# The images the bootloader rejected did so because of the KERNEL mismatch, not
+# their size -- see the kernel note at the top. But a size ceiling at the stock
+# 0x45000000 load address does independently exist: lk itself computed an
+# overlap for a 24,153,991-byte ramdisk there
+#   FAILED (remote: 'invalid ramdisk address: overlap with lk')
+# while a known-working 13,975,399-byte one is fine. So lk sits somewhere in
+# 0x45d53f67..0x46708f87 and the ceiling is real but unmeasured.
 #
-#   TW_INCLUDE_CRYPTO   keystore2 1.6 MB, libicui18n+libicuuc 4.5 MB,
-#                       gatekeeper/weaver/authsecret HALs      ~8-10 MB
-#   TW_EXTRA_LANGUAGES  DroidSansFallback.ttf 3.7 MB,
-#                       twres/languages 1.1 MB                  ~4.8 MB
-#   TW_INCLUDE_NTFS_3G  ntfs-3g binaries                        ~1 MB
-#
-# Encryption is the right thing to drop first: hinoki uses FDE with the footer
-# on the "metadata" partition, and TWRP 12.1 decrypts that through its vold
-# fork talking to this phone's Android 8.0 Keymaster 3.0 HAL, which was always
-# unlikely to work. Set this back to true (and re-check the ramdisk size) if a
-# smaller image turns out not to be what lk was objecting to.
+# These stay off for now to keep the ramdisk well under that window while the
+# kernel swap is tested on its own. Once the image is confirmed to boot, turn
+# them back on one at a time -- that also measures where the ceiling actually
+# is, which is worth knowing.
 TW_INCLUDE_CRYPTO := false
 
 # Extras

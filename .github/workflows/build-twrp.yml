@@ -168,6 +168,17 @@ jobs:
           TWRP 3.7.1 for the Sony Xperia XA1 (\`hinoki\`), built from the
           \`${{ inputs.manifest_branch }}\` branch of the TeamWin minimal manifest.
 
+          ## Pairs with LineageOS 17.1 - not with stock firmware
+
+          This recovery embeds the kernel from the **LineageOS 17.1 (Android 10)**
+          boot image for the XA1 Dual G3112, and its cmdline and load addresses
+          are copied from that boot image.
+
+          On stock Sony firmware the bootloader rejects it outright with
+          "Your device has been unlocked and the boot image is not working."
+          Recovery has to run the same kernel the ROM boots. Flash the
+          LineageOS 17.1 \`boot.img\` as well, or this will not start.
+
           Built from commit \`${{ github.sha }}\` by
           [run ${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
 
